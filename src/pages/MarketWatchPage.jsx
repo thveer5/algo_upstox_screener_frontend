@@ -115,7 +115,7 @@ export default function MarketWatchPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <MoversTable rows={rows} onTrade={setOrder} />
+      <MoversTable rows={rows} kind={tab} onTrade={setOrder} />
 
       {meta && (
         <div className="meta">

@@ -300,6 +300,40 @@ table.movers .seg { color: var(--muted); font-size: 11px; font-weight: 400; marg
 table.movers td.pos { color: var(--pos); }
 table.movers td.neg { color: var(--neg); }
 
+.streak-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+/* Gainers: green → orange → red (heat scale) */
+.streak-badge.gainer.streak-2 { background: #dcfce7; color: #166534; }
+.streak-badge.gainer.streak-3 { background: #bbf7d0; color: #14532d; }
+.streak-badge.gainer.streak-4 { background: #fed7aa; color: #9a3412; }
+.streak-badge.gainer.streak-5 { background: #fecaca; color: #991b1b; }
+/* Losers: pink → red → blue (cooling scale, deeper = worse) */
+.streak-badge.loser.streak-2 { background: #fee2e2; color: #991b1b; }
+.streak-badge.loser.streak-3 { background: #fecaca; color: #7f1d1d; }
+.streak-badge.loser.streak-4 { background: #dbeafe; color: #1e40af; }
+.streak-badge.loser.streak-5 { background: #c7d2fe; color: #312e81; }
+
+.breakout-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+.breakout-badge.up { background: #dcfce7; color: #166534; }
+.breakout-badge.down { background: #fee2e2; color: #991b1b; }
+.breakout-badge.within { background: #f3f4f6; color: #6b7280; }
+
 table.movers tbody tr:hover { background: var(--row-hover); }
 
 .meta {
