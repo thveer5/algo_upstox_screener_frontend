@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   bootstrapTvSession,
   fetchIndices,
@@ -7,6 +7,7 @@ import {
 } from '../api'
 import MoversTable from '../MoversTable'
 import OrderDrawer from '../OrderDrawer'
+import { toggleWishlist, wishlistedIds } from '../wishlist'
 
 const TABS = [
   { id: 'gainers', label: 'Gainers' },
@@ -25,6 +26,57 @@ export default function MarketWatchPage() {
   const [showBootstrap, setShowBootstrap] = useState(false)
   const [bootstrapValue, setBootstrapValue] = useState('')
   const [order, setOrder] = useState(null)
+
+  // Mirror the persisted wishlist so the star toggles fill/empty live, and
+  // stay in sync if it changes in another tab/page.
+  const [wishKeys, setWishKeys] = useState(() => wishlistedIds())
+  useEffect(() => {
+    const sync = () => setWishKeys(wishlistedIds())
+    window.addEventListener('wishlist-changed', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('wishlist-changed', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
+  const onWishlist = useCallback((row) => {
+    toggleWishlist(row, tab)
+  }, [tab])
+
+  // Sort direction by Traded Value, keyed per (index, tab) and persisted to localStorage.
+  // Values: 'desc' | 'asc' | undefined (undefined = backend order).
+  const [ttvSortMap, setTtvSortMap] = useState(() => {
+    try {
+      const stored = localStorage.getItem('mw_ttv_sort')
+      return stored ? JSON.parse(stored) : {}
+    } catch {
+      return {}
+    }
+  })
+  const sortKey = `${index}:${tab}`
+  const ttvSortDir = ttvSortMap[sortKey]
+
+  const cycleTtvSort = useCallback(() => {
+    setTtvSortMap((prev) => {
+      const cur = prev[sortKey]
+      const next = cur === undefined ? 'desc' : cur === 'desc' ? 'asc' : undefined
+      const updated = { ...prev }
+      if (next === undefined) delete updated[sortKey]
+      else updated[sortKey] = next
+      try { localStorage.setItem('mw_ttv_sort', JSON.stringify(updated)) } catch {}
+      return updated
+    })
+  }, [sortKey])
+
+  const displayRows = useMemo(() => {
+    if (!ttvSortDir) return rows
+    return [...rows].sort((a, b) => {
+      const va = a.ttv ?? 0
+      const vb = b.ttv ?? 0
+      return ttvSortDir === 'asc' ? va - vb : vb - va
+    })
+  }, [rows, ttvSortDir])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,6 +116,15 @@ export default function MarketWatchPage() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { fetchIndices().then(d => setIndices(d.indices || [])).catch(() => {}) }, [])
+
+  // Auto-refresh every 15s; pauses when the browser tab isn't visible so we
+  // don't burn screener calls when the dashboard is in the background.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!document.hidden) load()
+    }, 15000)
+    return () => clearInterval(id)
+  }, [load])
 
   return (
     <div className="page">
@@ -115,7 +176,15 @@ export default function MarketWatchPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <MoversTable rows={rows} kind={tab} onTrade={setOrder} />
+      <MoversTable
+        rows={displayRows}
+        kind={tab}
+        onTrade={setOrder}
+        onWishlist={onWishlist}
+        wishlistedKeys={wishKeys}
+        ttvSortDir={ttvSortDir}
+        onSortTtv={cycleTtvSort}
+      />
 
       {meta && (
         <div className="meta">

@@ -4,6 +4,7 @@ import { fetchPublicIp, getAuthStatus, getTvStatus } from './api'
 
 const NAV = [
   { to: '/', label: 'Market Watch', icon: '📈' },
+  { to: '/wishlist', label: 'Wishlist', icon: '⭐' },
   { to: '/holdings', label: 'Holdings', icon: '💼' },
   { to: '/positions', label: 'Positions', icon: '📊' },
   { to: '/gtt', label: 'GTT Orders', icon: '🎯' },

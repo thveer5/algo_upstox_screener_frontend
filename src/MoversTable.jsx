@@ -1,3 +1,5 @@
+import { classifyMarketCap, fmtCrore } from './marketCap'
+
 function fmtNumber(n, decimals = 2) {
   if (n == null) return '-'
   return n.toLocaleString('en-IN', {
@@ -11,10 +13,19 @@ function fmtCompact(n) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 0 })
 }
 
-export default function MoversTable({ rows, onTrade, kind = 'gainers' }) {
+export default function MoversTable({
+  rows,
+  onTrade,
+  onWishlist,
+  wishlistedKeys,
+  kind = 'gainers',
+  ttvSortDir,
+  onSortTtv,
+}) {
   if (!rows?.length) {
     return <div className="empty">No rows.</div>
   }
+  const ttvArrow = ttvSortDir === 'desc' ? ' ▼' : ttvSortDir === 'asc' ? ' ▲' : ''
   return (
     <table className="movers">
       <thead>
@@ -24,9 +35,16 @@ export default function MoversTable({ rows, onTrade, kind = 'gainers' }) {
           <th className="num">LTP</th>
           <th className="num">Change</th>
           <th className="num">Change %</th>
-          <th className="num">Traded Value</th>
+          <th
+            className={`num sortable ${ttvSortDir ? 'sort-active' : ''}`}
+            onClick={onSortTtv}
+            title="Sort by Traded Value (click to cycle desc → asc → off)"
+          >
+            Traded Value{ttvArrow}
+          </th>
           <th className="num">Volume</th>
           <th>Day Range</th>
+          <th>Market Cap</th>
           <th className="actions-th">Trade</th>
         </tr>
       </thead>
@@ -90,7 +108,31 @@ export default function MoversTable({ rows, onTrade, kind = 'gainers' }) {
                   )
                 })()}
               </td>
+              <td>
+                {(() => {
+                  const cap = classifyMarketCap(r.market_cap)
+                  if (!cap) return <span className="dim">—</span>
+                  return (
+                    <span
+                      className={`cap-badge cap-${cap.cls}`}
+                      title={`Market cap ${fmtCrore(cap.crore)}`}
+                    >
+                      {cap.tier}
+                    </span>
+                  )
+                })()}
+              </td>
               <td className="actions">
+                {(() => {
+                  const starred = wishlistedKeys?.has(r.instrument_key || r.symbol)
+                  return (
+                    <button
+                      className={`trade-btn wish ${starred ? 'active' : ''}`}
+                      onClick={() => onWishlist?.(r)}
+                      title={starred ? `Remove ${r.symbol} from wishlist` : `Add ${r.symbol} to wishlist`}
+                    >{starred ? '★' : '☆'}</button>
+                  )
+                })()}
                 <button
                   className="trade-btn buy"
                   onClick={() => onTrade?.({ side: 'BUY', row: r })}
