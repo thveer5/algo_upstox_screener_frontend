@@ -17,6 +17,7 @@ export default function MoversTable({
   rows,
   onTrade,
   onWishlist,
+  onRowClick,
   wishlistedKeys,
   kind = 'gainers',
   ttvSortDir,
@@ -53,7 +54,12 @@ export default function MoversTable({
           const positive = (r.change ?? 0) >= 0
           const colorClass = positive ? 'pos' : 'neg'
           return (
-            <tr key={r.instrument_key || r.symbol}>
+            <tr
+              key={r.instrument_key || r.symbol}
+              className={onRowClick ? 'clickable' : ''}
+              onClick={onRowClick ? () => onRowClick(r) : undefined}
+              title={onRowClick ? 'Click for day-by-day breakdown' : undefined}
+            >
               <td className="dim">{idx + 1}</td>
               <td className="sym">
                 {r.symbol} <span className="seg">EQ</span>
@@ -122,7 +128,7 @@ export default function MoversTable({
                   )
                 })()}
               </td>
-              <td className="actions">
+              <td className="actions" onClick={(e) => e.stopPropagation()}>
                 {(() => {
                   const starred = wishlistedKeys?.has(r.instrument_key || r.symbol)
                   return (

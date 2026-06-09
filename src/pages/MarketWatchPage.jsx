@@ -7,6 +7,7 @@ import {
 } from '../api'
 import MoversTable from '../MoversTable'
 import OrderDrawer from '../OrderDrawer'
+import StockDetailModal from '../StockDetailModal'
 import { toggleWishlist, wishlistedIds } from '../wishlist'
 
 const TABS = [
@@ -26,6 +27,8 @@ export default function MarketWatchPage() {
   const [showBootstrap, setShowBootstrap] = useState(false)
   const [bootstrapValue, setBootstrapValue] = useState('')
   const [order, setOrder] = useState(null)
+  const [detail, setDetail] = useState(null)
+  const [search, setSearch] = useState('')
 
   // Mirror the persisted wishlist so the star toggles fill/empty live, and
   // stay in sync if it changes in another tab/page.
@@ -70,13 +73,17 @@ export default function MarketWatchPage() {
   }, [sortKey])
 
   const displayRows = useMemo(() => {
-    if (!ttvSortDir) return rows
-    return [...rows].sort((a, b) => {
+    const q = search.trim().toLowerCase()
+    const filtered = q
+      ? rows.filter((r) => (r.symbol || '').toLowerCase().includes(q))
+      : rows
+    if (!ttvSortDir) return filtered
+    return [...filtered].sort((a, b) => {
       const va = a.ttv ?? 0
       const vb = b.ttv ?? 0
       return ttvSortDir === 'asc' ? va - vb : vb - va
     })
-  }, [rows, ttvSortDir])
+  }, [rows, ttvSortDir, search])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -165,6 +172,13 @@ export default function MarketWatchPage() {
           ))}
         </div>
         <div className="filters">
+          <input
+            className="search-input"
+            type="search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search scrip…"
+          />
           <select value={index} onChange={e => setIndex(e.target.value)}>
             {indices.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
@@ -181,6 +195,7 @@ export default function MarketWatchPage() {
         kind={tab}
         onTrade={setOrder}
         onWishlist={onWishlist}
+        onRowClick={(r) => setDetail({ ...r, kind: tab })}
         wishlistedKeys={wishKeys}
         ttvSortDir={ttvSortDir}
         onSortTtv={cycleTtvSort}
@@ -188,12 +203,15 @@ export default function MarketWatchPage() {
 
       {meta && (
         <div className="meta">
-          {meta.total ? `${rows.length} of ${meta.total} rows` : `${rows.length} rows`}
+          {search.trim()
+            ? `${displayRows.length} of ${rows.length} match "${search.trim()}"`
+            : meta.total ? `${rows.length} of ${meta.total} rows` : `${rows.length} rows`}
           {meta.updatedAt && ` · updated ${new Date(meta.updatedAt).toLocaleTimeString()}`}
         </div>
       )}
 
       <OrderDrawer open={!!order} initial={order} onClose={() => setOrder(null)} />
+      <StockDetailModal item={detail} onClose={() => setDetail(null)} />
     </div>
   )
 }

@@ -22,14 +22,17 @@ function fmtDay(iso) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
 }
 
-export default function WishlistDetailModal({ item, onClose }) {
+// Day-by-day price / change breakdown for one scrip. Shared by Market Watch
+// and the Wishlist. `item` is a screener row (needs instrument_key, symbol,
+// ltp, open/high/low, change_percent) plus `kind` ('gainers' | 'losers').
+export default function StockDetailModal({ item, onClose }) {
   const [candles, setCandles] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Streak length captured at wishlist time decides how many days to break down.
+  // Always show at least 10 days; widen to the full streak if it's longer.
   const streak = (item?.kind === 'losers' ? item?.fall_streak : item?.rally_streak) || 0
-  const windowDays = Math.max(streak, 6)
+  const windowDays = Math.max(streak, 10)
 
   useEffect(() => {
     if (!item) return
@@ -52,8 +55,8 @@ export default function WishlistDetailModal({ item, onClose }) {
   }, [onClose])
 
   // The historical day-candle API omits today's still-forming candle, so its
-  // newest row is yesterday. Merge today in from the wishlist snapshot (live
-  // screener LTP/high/low) so "current day" is actually today, then compute
+  // newest row is yesterday. Merge today in from the snapshot (live screener
+  // LTP/high/low) so "current day" is actually today, then compute
   // day-over-day change % from prior closes.
   const merged = useMemo(() => {
     const hist = candles || []
@@ -79,7 +82,7 @@ export default function WishlistDetailModal({ item, onClose }) {
     })
   }, [candles, item])
 
-  // Streak window (last N days incl. today), newest first.
+  // Window (last N days incl. today), newest first.
   const dayRows = useMemo(() => merged.slice(-windowDays).reverse(), [merged, windowDays])
 
   if (!item) return null
@@ -90,7 +93,7 @@ export default function WishlistDetailModal({ item, onClose }) {
   const todayHigh = latest?.high ?? item.high
   const todayLow = latest?.low ?? item.low
 
-  // Cumulative move across the streak window (first shown close -> latest close).
+  // Cumulative move across the window (first shown close -> latest close).
   const first = dayRows.length ? dayRows[dayRows.length - 1] : null
   const cumPct = first && latest && first.close
     ? ((latest.close - first.close) / first.close) * 100

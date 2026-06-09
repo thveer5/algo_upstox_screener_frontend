@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import OrderDrawer from '../OrderDrawer'
-import WishlistDetailModal from '../WishlistDetailModal'
+import StockDetailModal from '../StockDetailModal'
 import { classifyMarketCap, fmtCrore } from '../marketCap'
 import { getWishlist, removeFromWishlist } from '../wishlist'
 
@@ -238,7 +238,7 @@ export default function WishlistPage() {
       )}
 
       <OrderDrawer open={!!order} initial={order} onClose={() => setOrder(null)} />
-      <WishlistDetailModal item={detail} onClose={() => setDetail(null)} />
+      <StockDetailModal item={detail} onClose={() => setDetail(null)} />
     </div>
   )
 }
