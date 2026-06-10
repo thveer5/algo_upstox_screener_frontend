@@ -30,9 +30,9 @@ export default function StockDetailModal({ item, onClose }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Always show at least 10 days; widen to the full streak if it's longer.
+  // Always show at least 30 days; widen to the full streak if it's longer.
   const streak = (item?.kind === 'losers' ? item?.fall_streak : item?.rally_streak) || 0
-  const windowDays = Math.max(streak, 10)
+  const windowDays = Math.max(streak, 30)
 
   useEffect(() => {
     if (!item) return
@@ -40,7 +40,7 @@ export default function StockDetailModal({ item, onClose }) {
     setLoading(true)
     setError(null)
     setCandles(null)
-    fetchCandles({ instrumentKey: item.instrument_key, days: windowDays })
+    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 45) })
       .then((d) => { if (!cancelled) setCandles(d.candles || []) })
       .catch((e) => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })

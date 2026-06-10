@@ -47,6 +47,11 @@ export async function fetchIndices() {
   return get('/api/indices')
 }
 
+export async function searchStocks({ q, pageSize = 25 } = {}) {
+  const params = new URLSearchParams({ q, page_size: String(pageSize) })
+  return get(`/api/screener/search?${params.toString()}`)
+}
+
 export async function fetchCandles({ instrumentKey, days = 10 } = {}) {
   const params = new URLSearchParams({ instrument_key: instrumentKey, days: String(days) })
   return get(`/api/screener/candles?${params.toString()}`)

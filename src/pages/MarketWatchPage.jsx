@@ -4,6 +4,7 @@ import {
   fetchIndices,
   fetchMovers,
   refreshTvSession,
+  searchStocks,
 } from '../api'
 import MoversTable from '../MoversTable'
 import OrderDrawer from '../OrderDrawer'
@@ -29,6 +30,26 @@ export default function MarketWatchPage() {
   const [order, setOrder] = useState(null)
   const [detail, setDetail] = useState(null)
   const [search, setSearch] = useState('')
+  const [searchRows, setSearchRows] = useState(null) // null = not searching
+  const [searchLoading, setSearchLoading] = useState(false)
+
+  const query = search.trim()
+  const isSearching = query.length >= 2
+
+  // Debounced full-universe symbol search (covers stocks not in the movers
+  // list). Ignores the index dropdown — you're looking up a specific scrip.
+  useEffect(() => {
+    if (!isSearching) { setSearchRows(null); setSearchLoading(false); return }
+    let cancelled = false
+    setSearchLoading(true)
+    const t = setTimeout(() => {
+      searchStocks({ q: query })
+        .then((d) => { if (!cancelled) setSearchRows(d.instruments || []) })
+        .catch(() => { if (!cancelled) setSearchRows([]) })
+        .finally(() => { if (!cancelled) setSearchLoading(false) })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [query, isSearching])
 
   // Mirror the persisted wishlist so the star toggles fill/empty live, and
   // stay in sync if it changes in another tab/page.
@@ -43,9 +64,16 @@ export default function MarketWatchPage() {
     }
   }, [])
 
+  // While searching, results are a mix of up/down stocks — derive each row's
+  // "kind" from its own change so streak badges / the modal pick the right side.
+  const rowKind = useCallback(
+    (row) => (isSearching ? ((row.change ?? 0) >= 0 ? 'gainers' : 'losers') : tab),
+    [isSearching, tab],
+  )
+
   const onWishlist = useCallback((row) => {
-    toggleWishlist(row, tab)
-  }, [tab])
+    toggleWishlist(row, rowKind(row))
+  }, [rowKind])
 
   // Sort direction by Traded Value, keyed per (index, tab) and persisted to localStorage.
   // Values: 'desc' | 'asc' | undefined (undefined = backend order).
@@ -73,17 +101,16 @@ export default function MarketWatchPage() {
   }, [sortKey])
 
   const displayRows = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const filtered = q
-      ? rows.filter((r) => (r.symbol || '').toLowerCase().includes(q))
-      : rows
-    if (!ttvSortDir) return filtered
-    return [...filtered].sort((a, b) => {
+    // When searching, show full-universe results from the backend; otherwise the
+    // current movers list.
+    const base = isSearching ? (searchRows || []) : rows
+    if (!ttvSortDir) return base
+    return [...base].sort((a, b) => {
       const va = a.ttv ?? 0
       const vb = b.ttv ?? 0
       return ttvSortDir === 'asc' ? va - vb : vb - va
     })
-  }, [rows, ttvSortDir, search])
+  }, [rows, searchRows, isSearching, ttvSortDir])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -190,22 +217,28 @@ export default function MarketWatchPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <MoversTable
-        rows={displayRows}
-        kind={tab}
-        onTrade={setOrder}
-        onWishlist={onWishlist}
-        onRowClick={(r) => setDetail({ ...r, kind: tab })}
-        wishlistedKeys={wishKeys}
-        ttvSortDir={ttvSortDir}
-        onSortTtv={cycleTtvSort}
-      />
+      {isSearching && searchLoading && displayRows.length === 0 ? (
+        <div className="empty">Searching “{query}”…</div>
+      ) : (
+        <MoversTable
+          rows={displayRows}
+          kind={isSearching ? 'search' : tab}
+          onTrade={setOrder}
+          onWishlist={onWishlist}
+          onRowClick={(r) => setDetail({ ...r, kind: rowKind(r) })}
+          wishlistedKeys={wishKeys}
+          ttvSortDir={ttvSortDir}
+          onSortTtv={cycleTtvSort}
+        />
+      )}
 
-      {meta && (
+      {isSearching ? (
         <div className="meta">
-          {search.trim()
-            ? `${displayRows.length} of ${rows.length} match "${search.trim()}"`
-            : meta.total ? `${rows.length} of ${meta.total} rows` : `${rows.length} rows`}
+          {searchLoading ? 'Searching…' : `${displayRows.length} result${displayRows.length === 1 ? '' : 's'} for "${query}" · all NSE`}
+        </div>
+      ) : meta && (
+        <div className="meta">
+          {meta.total ? `${rows.length} of ${meta.total} rows` : `${rows.length} rows`}
           {meta.updatedAt && ` · updated ${new Date(meta.updatedAt).toLocaleTimeString()}`}
         </div>
       )}

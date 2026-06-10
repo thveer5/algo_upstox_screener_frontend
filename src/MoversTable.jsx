@@ -64,9 +64,10 @@ export default function MoversTable({
               <td className="sym">
                 {r.symbol} <span className="seg">EQ</span>
                 {(() => {
-                  const streak = kind === 'losers' ? r.fall_streak : r.rally_streak
+                  // For 'search' (mixed) results, pick the side from the row's own change.
+                  const isLoser = kind === 'losers' || (kind !== 'gainers' && (r.change ?? 0) < 0)
+                  const streak = isLoser ? r.fall_streak : r.rally_streak
                   if (!streak || streak < 2) return null
-                  const isLoser = kind === 'losers'
                   const icon = isLoser
                     ? (streak >= 4 ? '❄️' : '↓')
                     : (streak >= 4 ? '🔥' : '↑')
