@@ -50,6 +50,12 @@ export function toggleWishlist(row, kind) {
   return addToWishlist(row, kind)
 }
 
+// Overwrite the whole wishlist (used by the refresh-all action).
+export function replaceWishlist(list) {
+  save(list)
+  return list
+}
+
 // Set of ids currently wishlisted — handy for rendering filled/empty stars.
 export function wishlistedIds() {
   return new Set(getWishlist().map(idOf))

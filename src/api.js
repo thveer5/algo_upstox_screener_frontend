@@ -33,6 +33,15 @@ async function del(path) {
   return jsonOrThrow(await fetch(url(path), { method: 'DELETE', ...credOpts }))
 }
 
+async function patch(path, body) {
+  return jsonOrThrow(await fetch(url(path), {
+    method: 'PATCH',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    ...credOpts,
+  }))
+}
+
 export async function getAuthStatus() {
   return get('/auth/status')
 }
@@ -50,6 +59,11 @@ export async function fetchIndices() {
 export async function searchStocks({ q, pageSize = 25 } = {}) {
   const params = new URLSearchParams({ q, page_size: String(pageSize) })
   return get(`/api/screener/search?${params.toString()}`)
+}
+
+export async function fetchQuotes(symbols = []) {
+  const params = new URLSearchParams({ symbols: symbols.join(',') })
+  return get(`/api/screener/quotes?${params.toString()}`)
 }
 
 export async function fetchCandles({ instrumentKey, days = 10 } = {}) {
@@ -99,4 +113,21 @@ export async function placeTrailingGtt(body) {
 
 export async function fetchPublicIp() {
   return get('/api/system/ip')
+}
+
+// ----- Buy/Sell trade records (SQLite-backed) -----
+export async function listTrades() {
+  return get('/api/trades')
+}
+
+export async function createTrade(body) {
+  return post('/api/trades', body)
+}
+
+export async function updateTrade(id, body) {
+  return patch(`/api/trades/${id}`, body)
+}
+
+export async function deleteTrade(id) {
+  return del(`/api/trades/${id}`)
 }

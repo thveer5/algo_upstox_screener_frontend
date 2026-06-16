@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import OrderDrawer from '../OrderDrawer'
 import StockDetailModal from '../StockDetailModal'
 import { classifyMarketCap, fmtCrore } from '../marketCap'
-import { getWishlist, removeFromWishlist } from '../wishlist'
+import { fetchQuotes } from '../api'
+import { getWishlist, removeFromWishlist, replaceWishlist } from '../wishlist'
 
 function fmtNumber(n, decimals = 2) {
   if (n == null) return '-'
@@ -31,9 +32,13 @@ function fmtDate(iso) {
 
 const PAGE_SIZES = [10, 20, 30]
 
-function StreakBadge({ kind, rallyStreak, fallStreak }) {
-  const isLoser = kind === 'losers'
-  const streak = isLoser ? fallStreak : rallyStreak
+function StreakBadge({ rallyStreak, fallStreak }) {
+  // Pick whichever streak the stock actually has (at most one is non-zero),
+  // independent of the band it was wishlisted under.
+  const fall = fallStreak || 0
+  const rally = rallyStreak || 0
+  const isLoser = fall >= rally
+  const streak = isLoser ? fall : rally
   if (!streak || streak < 2) return null
   const icon = isLoser ? (streak >= 4 ? '❄️' : '↓') : (streak >= 4 ? '🔥' : '↑')
   return (
@@ -41,8 +46,8 @@ function StreakBadge({ kind, rallyStreak, fallStreak }) {
       className={`streak-badge ${isLoser ? 'loser' : 'gainer'} streak-${Math.min(streak, 5)}`}
       title={
         isLoser
-          ? `Was falling for ${streak} consecutive trading days when wishlisted`
-          : `Was rallying for ${streak} consecutive trading days when wishlisted`
+          ? `Falling for ${streak} consecutive trading days`
+          : `Rallying for ${streak} consecutive trading days`
       }
     >
       {icon} D{streak}
@@ -57,6 +62,9 @@ export default function WishlistPage() {
   const [filter, setFilter] = useState('all') // all | gainers | losers
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState(null)
+  const [refreshedAt, setRefreshedAt] = useState(null)
 
   useEffect(() => {
     const sync = () => setRows(getWishlist())
@@ -76,6 +84,38 @@ export default function WishlistPage() {
     if (!confirm('Clear the entire wishlist?')) return
     rows.forEach((r) => removeFromWishlist(r))
   }
+
+  // Pull fresh live data for every wishlisted scrip and merge it in, keeping
+  // each item's original "added" time and band.
+  const onRefresh = useCallback(async () => {
+    const list = getWishlist()
+    if (!list.length) return
+    setRefreshing(true)
+    setError(null)
+    try {
+      const symbols = [...new Set(list.map((w) => w.symbol).filter(Boolean))]
+      const data = await fetchQuotes(symbols)
+      const byKey = {}
+      const bySym = {}
+      for (const i of data.instruments || []) {
+        if (i.instrument_key) byKey[i.instrument_key] = i
+        if (i.symbol) bySym[i.symbol] = i
+      }
+      const updated = list.map((w) => {
+        const fresh = byKey[w.instrument_key] || bySym[w.symbol]
+        // Preserve identity, when-added and the band; overlay fresh quote fields.
+        return fresh
+          ? { ...w, ...fresh, kind: w.kind, added_at: w.added_at }
+          : w
+      })
+      replaceWishlist(updated)
+      setRefreshedAt(new Date())
+    } catch (e) {
+      setError(`Refresh failed: ${e.message}`)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [])
 
   const visible = useMemo(
     () => (filter === 'all' ? rows : rows.filter((r) => r.kind === filter)),
@@ -98,11 +138,16 @@ export default function WishlistPage() {
       <div className="page-head">
         <h1>Wishlist</h1>
         <div className="page-actions">
+          <button className="refresh" onClick={onRefresh} disabled={refreshing || !rows.length}>
+            {refreshing ? 'Refreshing…' : 'Refresh prices'}
+          </button>
           <button className="btn-sm" onClick={onClear} disabled={!rows.length}>
             Clear all
           </button>
         </div>
       </div>
+
+      {error && <div className="error">{error}</div>}
 
       <div className="toolbar">
         <div className="tabs">
@@ -168,7 +213,7 @@ export default function WishlistPage() {
                   <td className="dim">{(page - 1) * pageSize + idx + 1}</td>
                   <td className="sym">
                     {r.symbol} <span className="seg">{r.exchange || 'EQ'}</span>
-                    <StreakBadge kind={r.kind} rallyStreak={r.rally_streak} fallStreak={r.fall_streak} />
+                    <StreakBadge rallyStreak={r.rally_streak} fallStreak={r.fall_streak} />
                   </td>
                   <td>
                     <span className={`cap-badge ${r.kind === 'losers' ? 'cap-micro' : 'cap-large'}`}>
@@ -234,6 +279,7 @@ export default function WishlistPage() {
         <div className="meta">
           Showing {paged.length} of {visible.length}
           {filter !== 'all' ? ` ${filter}` : ''} · {rows.length} total wishlisted
+          {refreshedAt && ` · prices updated ${refreshedAt.toLocaleTimeString()}`}
         </div>
       )}
 
