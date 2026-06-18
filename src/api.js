@@ -42,6 +42,15 @@ async function patch(path, body) {
   }))
 }
 
+async function put(path, body) {
+  return jsonOrThrow(await fetch(url(path), {
+    method: 'PUT',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    ...credOpts,
+  }))
+}
+
 export async function getAuthStatus() {
   return get('/auth/status')
 }
@@ -64,6 +73,23 @@ export async function searchStocks({ q, pageSize = 25 } = {}) {
 export async function fetchQuotes(symbols = []) {
   const params = new URLSearchParams({ symbols: symbols.join(',') })
   return get(`/api/screener/quotes?${params.toString()}`)
+}
+
+// ----- Wishlist (SQLite-backed) -----
+export async function listWishlist() {
+  return get('/api/wishlist')
+}
+
+export async function addWishlistItem(item) {
+  return post('/api/wishlist', item)
+}
+
+export async function removeWishlistItem(key) {
+  return del(`/api/wishlist/${encodeURIComponent(key)}`)
+}
+
+export async function replaceWishlistItems(items) {
+  return put('/api/wishlist', { items })
 }
 
 export async function fetchCandles({ instrumentKey, days = 10 } = {}) {
@@ -130,4 +156,21 @@ export async function updateTrade(id, body) {
 
 export async function deleteTrade(id) {
   return del(`/api/trades/${id}`)
+}
+
+// ----- Stock board cards (Plan / Buy / Sell) -----
+export async function listCards() {
+  return get('/api/cards')
+}
+
+export async function createCard(body) {
+  return post('/api/cards', body)
+}
+
+export async function updateCard(id, body) {
+  return patch(`/api/cards/${id}`, body)
+}
+
+export async function deleteCard(id) {
+  return del(`/api/cards/${id}`)
 }

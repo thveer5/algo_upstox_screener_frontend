@@ -10,6 +10,7 @@ import PositionsPage from './pages/PositionsPage.jsx'
 import GttOrdersPage from './pages/GttOrdersPage.jsx'
 import WishlistPage from './pages/WishlistPage.jsx'
 import BuyInfoPage from './pages/BuyInfoPage.jsx'
+import StockBoardPage from './pages/StockBoardPage.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/" element={<MarketWatchPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/buy-info" element={<BuyInfoPage />} />
+          <Route path="/board" element={<StockBoardPage />} />
           <Route path="/holdings" element={<HoldingsPage />} />
           <Route path="/positions" element={<PositionsPage />} />
           <Route path="/gtt" element={<GttOrdersPage />} />

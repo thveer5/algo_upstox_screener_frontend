@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCandles } from './api'
-import { backtestPredictor, predictNextDay } from './predict'
 
 function fmt(n, decimals = 2) {
   if (n == null || isNaN(n)) return '-'
@@ -31,10 +30,10 @@ export default function StockDetailModal({ item, onClose }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Use a ~60 trading-day sample (better stats / backtest); widen further only
-  // if the current streak runs longer than that.
+  // Show ~90 trading days of history; widen further only if the current streak
+  // runs longer than that.
   const streak = (item?.kind === 'losers' ? item?.fall_streak : item?.rally_streak) || 0
-  const windowDays = Math.max(streak, 60)
+  const windowDays = Math.max(streak, 90)
 
   useEffect(() => {
     if (!item) return
@@ -42,7 +41,7 @@ export default function StockDetailModal({ item, onClose }) {
     setLoading(true)
     setError(null)
     setCandles(null)
-    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 90) })
+    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 120) })
       .then((d) => { if (!cancelled) setCandles(d.candles || []) })
       .catch((e) => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -86,10 +85,6 @@ export default function StockDetailModal({ item, onClose }) {
 
   // Window (last N days incl. today), newest first.
   const dayRows = useMemo(() => merged.slice(-windowDays).reverse(), [merged, windowDays])
-
-  // Next-day statistical estimate + walk-forward backtest from fetched history.
-  const pred = useMemo(() => predictNextDay(merged), [merged])
-  const backtest = useMemo(() => backtestPredictor(merged), [merged])
 
   if (!item) return null
 
@@ -135,45 +130,6 @@ export default function StockDetailModal({ item, onClose }) {
             <div className="kv"><span>Low</span><b>₹{fmt(prev?.low)}</b></div>
           </div>
         </div>
-
-        {pred.ok && (
-          <div className={`predict-card dir-${pred.direction}`}>
-            <div className="predict-head">
-              <span className="predict-title">Tomorrow's outlook</span>
-              <span className={`predict-badge dir-${pred.direction}`}>
-                {pred.direction === 'up' ? '▲' : pred.direction === 'down' ? '▼' : '◌'} {pred.label}
-              </span>
-            </div>
-            <div className="predict-prob">
-              <b>{Math.round(pred.probUp * 100)}%</b> chance up
-              <span className="predict-conf"> · {pred.confidence} confidence · {pred.regime} · {pred.sampleDays}d sample</span>
-              {pred.atrPct != null && (
-                <span className="predict-conf"> · typical move ±{pred.atrPct.toFixed(1)}%</span>
-              )}
-            </div>
-            <ul className="predict-signals">
-              {pred.signals.map((s) => (
-                <li key={s.name}>
-                  <span className="sig-name">{s.name}</span>
-                  <span className={`sig-prob ${s.prob >= 0.5 ? 'pos' : 'neg'}`}>{Math.round(s.prob * 100)}% up</span>
-                  <span className="sig-weight" title="Share of the decision (adapts to evidence & regime)">w {s.weightPct}%</span>
-                  <span className="sig-detail">{s.detail}</span>
-                </li>
-              ))}
-            </ul>
-            {backtest.ok && backtest.accuracy != null && (
-              <div className={`predict-backtest ${backtest.accuracy >= 0.55 ? 'acc-good' : backtest.accuracy < 0.45 ? 'acc-bad' : 'acc-mid'}`}>
-                Backtest: <b>{backtest.correct}/{backtest.calls}</b> calls correct ({Math.round(backtest.accuracy * 100)}%)
-                {backtest.calls < backtest.tested && ` · ${backtest.tested - backtest.calls} no-call`}
-                {' '}· Brier {backtest.brier.toFixed(2)} (0.25 = coin flip)
-                {' '}· always-up baseline {Math.round(backtest.majorityBaseline * 100)}%
-              </div>
-            )}
-            <div className="predict-note">
-              Statistical estimate (drift + Markov + streak + range) — not financial advice.
-            </div>
-          </div>
-        )}
 
         <div className="modal-section-title">
           Last {dayRows.length || windowDays} days

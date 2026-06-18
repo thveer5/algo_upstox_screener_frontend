@@ -3,7 +3,7 @@ import OrderDrawer from '../OrderDrawer'
 import StockDetailModal from '../StockDetailModal'
 import { classifyMarketCap, fmtCrore } from '../marketCap'
 import { fetchQuotes } from '../api'
-import { getWishlist, removeFromWishlist, replaceWishlist } from '../wishlist'
+import { fetchWishlist, removeFromWishlist, replaceWishlist } from '../wishlist'
 
 function fmtNumber(n, decimals = 2) {
   if (n == null) return '-'
@@ -56,7 +56,7 @@ function StreakBadge({ rallyStreak, fallStreak }) {
 }
 
 export default function WishlistPage() {
-  const [rows, setRows] = useState(() => getWishlist())
+  const [rows, setRows] = useState([])
   const [order, setOrder] = useState(null)
   const [detail, setDetail] = useState(null)
   const [filter, setFilter] = useState('all') // all | gainers | losers
@@ -67,28 +67,26 @@ export default function WishlistPage() {
   const [refreshedAt, setRefreshedAt] = useState(null)
 
   useEffect(() => {
-    const sync = () => setRows(getWishlist())
+    const sync = () => fetchWishlist().then(setRows)
+    sync()
     window.addEventListener('wishlist-changed', sync)
-    window.addEventListener('storage', sync)
-    return () => {
-      window.removeEventListener('wishlist-changed', sync)
-      window.removeEventListener('storage', sync)
-    }
+    return () => window.removeEventListener('wishlist-changed', sync)
   }, [])
 
   const onRemove = useCallback((row) => {
     removeFromWishlist(row)
   }, [])
 
-  const onClear = () => {
+  const onClear = async () => {
     if (!confirm('Clear the entire wishlist?')) return
-    rows.forEach((r) => removeFromWishlist(r))
+    try { await replaceWishlist([]) }
+    catch (e) { setError(`Clear failed: ${e.message}`) }
   }
 
   // Pull fresh live data for every wishlisted scrip and merge it in, keeping
   // each item's original "added" time and band.
   const onRefresh = useCallback(async () => {
-    const list = getWishlist()
+    const list = rows
     if (!list.length) return
     setRefreshing(true)
     setError(null)
@@ -108,14 +106,14 @@ export default function WishlistPage() {
           ? { ...w, ...fresh, kind: w.kind, added_at: w.added_at }
           : w
       })
-      replaceWishlist(updated)
+      await replaceWishlist(updated)
       setRefreshedAt(new Date())
     } catch (e) {
       setError(`Refresh failed: ${e.message}`)
     } finally {
       setRefreshing(false)
     }
-  }, [])
+  }, [rows])
 
   const visible = useMemo(
     () => (filter === 'all' ? rows : rows.filter((r) => r.kind === filter)),

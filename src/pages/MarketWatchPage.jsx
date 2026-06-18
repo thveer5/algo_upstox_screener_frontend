@@ -9,7 +9,7 @@ import {
 import MoversTable from '../MoversTable'
 import OrderDrawer from '../OrderDrawer'
 import StockDetailModal from '../StockDetailModal'
-import { toggleWishlist, wishlistedIds } from '../wishlist'
+import { addToWishlist, fetchWishlist, idsOf, removeFromWishlist } from '../wishlist'
 
 const TABS = [
   { id: 'gainers', label: 'Gainers' },
@@ -51,17 +51,14 @@ export default function MarketWatchPage() {
     return () => { cancelled = true; clearTimeout(t) }
   }, [query, isSearching])
 
-  // Mirror the persisted wishlist so the star toggles fill/empty live, and
-  // stay in sync if it changes in another tab/page.
-  const [wishKeys, setWishKeys] = useState(() => wishlistedIds())
+  // Mirror the persisted (DB-backed) wishlist so the star toggles fill/empty,
+  // and re-sync whenever it changes.
+  const [wishKeys, setWishKeys] = useState(new Set())
   useEffect(() => {
-    const sync = () => setWishKeys(wishlistedIds())
+    const sync = () => fetchWishlist().then((items) => setWishKeys(idsOf(items)))
+    sync()
     window.addEventListener('wishlist-changed', sync)
-    window.addEventListener('storage', sync)
-    return () => {
-      window.removeEventListener('wishlist-changed', sync)
-      window.removeEventListener('storage', sync)
-    }
+    return () => window.removeEventListener('wishlist-changed', sync)
   }, [])
 
   // While searching, results are a mix of up/down stocks — derive each row's
@@ -71,9 +68,27 @@ export default function MarketWatchPage() {
     [isSearching, tab],
   )
 
-  const onWishlist = useCallback((row) => {
-    toggleWishlist(row, rowKind(row))
-  }, [rowKind])
+  const onWishlist = useCallback(async (row) => {
+    const key = row.instrument_key || row.symbol
+    const has = wishKeys.has(key)
+    // Optimistic star toggle; the 'wishlist-changed' event re-syncs from the DB.
+    setWishKeys((prev) => {
+      const next = new Set(prev)
+      if (has) next.delete(key); else next.add(key)
+      return next
+    })
+    try {
+      if (has) await removeFromWishlist(row)
+      else await addToWishlist(row, rowKind(row))
+    } catch {
+      // Revert on failure.
+      setWishKeys((prev) => {
+        const next = new Set(prev)
+        if (has) next.add(key); else next.delete(key)
+        return next
+      })
+    }
+  }, [wishKeys, rowKind])
 
   // Sort direction by Traded Value, keyed per (index, tab) and persisted to localStorage.
   // Values: 'desc' | 'asc' | undefined (undefined = backend order).

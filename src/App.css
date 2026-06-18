@@ -589,72 +589,115 @@ td.sym.clickable:hover { color: var(--accent); }
 .ss-item:hover { background: var(--row-hover); }
 .ss-item .ss-ltp { margin-left: auto; color: var(--muted); }
 
-/* ---- Next-day prediction card ---- */
-.predict-card {
-  margin: 16px 0 4px;
+/* ---- Stock board (Kanban) ---- */
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.board-col {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fafc;
+  min-height: 200px;
+  transition: background 120ms, box-shadow 120ms;
+}
+.board-col.drag-over { box-shadow: 0 0 0 2px var(--accent) inset; }
+
+/* Column accent colors */
+.board-col.col-plan { background: #eff6ff; border-color: #bfdbfe; }
+.board-col.col-buy  { background: #ecfdf5; border-color: #a7f3d0; }
+.board-col.col-sell { background: #fff7ed; border-color: #fed7aa; }
+
+.board-col-head { display: flex; align-items: center; justify-content: space-between; }
+.board-col-title { font-size: 15px; font-weight: 700; }
+.col-plan .board-col-title { color: #1d4ed8; }
+.col-buy  .board-col-title { color: #047857; }
+.col-sell .board-col-title { color: #c2410c; }
+.board-col-count {
+  font-size: 12px; font-weight: 700; color: white;
+  min-width: 22px; text-align: center;
+  padding: 1px 7px; border-radius: 10px;
+}
+.col-plan .board-col-count { background: #3b82f6; }
+.col-buy  .board-col-count { background: #10b981; }
+.col-sell .board-col-count { background: #f97316; }
+.board-col-hint { font-size: 11px; color: var(--muted); margin: 2px 0 10px; }
+
+.board-cards { display: flex; flex-direction: column; gap: 10px; min-height: 60px; }
+.board-empty {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 18px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.board-card {
+  background: white;
   border: 1px solid var(--border);
   border-left: 4px solid var(--muted);
   border-radius: 8px;
-  padding: 12px 14px;
-  background: #fafafa;
+  padding: 10px;
+  cursor: grab;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
-.predict-card.dir-up { border-left-color: #16a34a; background: #f0fdf4; }
-.predict-card.dir-down { border-left-color: #dc2626; background: #fef2f2; }
-.predict-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.board-card:active { cursor: grabbing; }
+.board-card.dragging { opacity: 0.5; }
+.col-plan .board-card { border-left-color: #3b82f6; }
+.col-buy  .board-card { border-left-color: #10b981; }
+.col-sell .board-card { border-left-color: #f97316; }
+
+.board-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.board-card-sym { font-weight: 700; font-size: 14px; }
+.board-card-right { display: flex; align-items: center; gap: 8px; }
+.board-card-ltp { font-size: 12px; color: var(--muted); }
+.board-card-x {
+  border: none; background: none; cursor: pointer;
+  color: var(--muted); font-size: 18px; line-height: 1; padding: 0 2px;
 }
-.predict-title { font-size: 13px; font-weight: 700; color: var(--fg); }
-.predict-badge {
-  padding: 3px 10px;
-  border-radius: 5px;
-  font-size: 12px;
-  font-weight: 700;
-  background: #e5e7eb;
-  color: #374151;
-}
-.predict-badge.dir-up { background: #16a34a; color: white; }
-.predict-badge.dir-down { background: #dc2626; color: white; }
-.predict-prob { margin-top: 8px; font-size: 14px; }
-.predict-prob b { font-size: 18px; }
-.predict-conf { color: var(--muted); font-size: 12px; }
-.predict-signals {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.predict-signals li {
-  display: grid;
-  grid-template-columns: 64px 58px 44px 1fr;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-.predict-signals .sig-name { font-weight: 600; color: var(--fg); }
-.predict-signals .sig-prob { font-weight: 600; }
-.predict-signals .sig-weight { color: #6b7280; font-variant-numeric: tabular-nums; }
-.predict-signals .sig-detail { color: var(--muted); }
-.predict-backtest {
-  margin-top: 10px;
-  padding: 6px 10px;
+.board-card-x:hover { color: var(--neg); }
+.board-card-note {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  padding: 6px 8px;
   font-size: 12px;
-  background: #f3f4f6;
-  color: #374151;
+  font-family: inherit;
+  resize: vertical;
+  background: #fcfcfc;
 }
-.predict-backtest.acc-good { background: #f0fdf4; color: #166534; }
-.predict-backtest.acc-bad { background: #fef2f2; color: #991b1b; }
-.predict-backtest.acc-mid { background: #fffbeb; color: #92400e; }
-.predict-note {
-  margin-top: 10px;
-  font-size: 11px;
-  color: var(--muted);
-  font-style: italic;
+.board-card-note:focus { outline: none; border-color: var(--accent); background: white; }
+
+.wl-picker { position: relative; margin-bottom: 10px; }
+.wl-picker input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+}
+.wl-picker input:focus { outline: none; border-color: var(--accent); }
+.wl-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  z-index: 20;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .board { grid-template-columns: 1fr; }
 }
 
 .empty {
