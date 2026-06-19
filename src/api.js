@@ -92,8 +92,9 @@ export async function replaceWishlistItems(items) {
   return put('/api/wishlist', { items })
 }
 
-export async function fetchCandles({ instrumentKey, days = 10 } = {}) {
+export async function fetchCandles({ instrumentKey, days = 10, ltp = null } = {}) {
   const params = new URLSearchParams({ instrument_key: instrumentKey, days: String(days) })
+  if (ltp != null) params.set('ltp', String(ltp))
   return get(`/api/screener/candles?${params.toString()}`)
 }
 

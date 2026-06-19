@@ -27,6 +27,7 @@ function fmtDay(iso) {
 // ltp, open/high/low, change_percent) plus `kind` ('gainers' | 'losers').
 export default function StockDetailModal({ item, onClose }) {
   const [candles, setCandles] = useState(null)
+  const [prediction, setPrediction] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -41,8 +42,9 @@ export default function StockDetailModal({ item, onClose }) {
     setLoading(true)
     setError(null)
     setCandles(null)
-    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 120) })
-      .then((d) => { if (!cancelled) setCandles(d.candles || []) })
+    setPrediction(null)
+    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 120), ltp: item.ltp })
+      .then((d) => { if (!cancelled) { setCandles(d.candles || []); setPrediction(d.prediction || null) } })
       .catch((e) => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -130,6 +132,43 @@ export default function StockDetailModal({ item, onClose }) {
             <div className="kv"><span>Low</span><b>₹{fmt(prev?.low)}</b></div>
           </div>
         </div>
+
+        {prediction && prediction.ok && (() => {
+          const p = prediction
+          const pct = Math.round(p.prob_up * 100)
+          const arrow = p.direction === 'up' ? '▲' : p.direction === 'down' ? '▼' : '◌'
+          const label = p.direction === 'up' ? (pct >= 65 ? 'Likely Up' : 'Lean Up')
+            : p.direction === 'down' ? (pct <= 35 ? 'Likely Down' : 'Lean Down') : 'Neutral'
+          return (
+            <div className={`predict-card dir-${p.direction}`}>
+              <div className="predict-head">
+                <span className="predict-title">Pattern forecast — tomorrow</span>
+                <span className={`predict-badge dir-${p.direction}`}>{arrow} {label}</span>
+              </div>
+              <div className="predict-prob">
+                <b>{pct}%</b> chance up
+                <span className="predict-conf"> · {p.confidence} confidence · {p.sample_days}d sample</span>
+              </div>
+              <div className="predict-pattern">
+                After <b>{p.pattern}</b> ({p.pattern_len}-day pattern), the next day was{' '}
+                <span className="pos">↑ {p.ups}</span> / <span className="neg">↓ {p.downs}</span>{' '}
+                ({p.matches} times in history)
+              </div>
+              <ul className="predict-signals">
+                {p.by_length.map((b) => (
+                  <li key={b.length}>
+                    <span className="sig-name">{b.pattern}</span>
+                    <span className={`sig-prob ${b.prob_up >= 0.5 ? 'pos' : 'neg'}`}>{Math.round(b.prob_up * 100)}% up</span>
+                    <span className="sig-detail">{b.ups}↑ / {b.downs}↓ · {b.matches} matches</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="predict-note">
+                Empirical: how this stock behaved after the same up/down sequence over {p.sample_days} days — not financial advice.
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="modal-section-title">
           Last {dayRows.length || windowDays} days

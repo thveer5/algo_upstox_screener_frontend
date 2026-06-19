@@ -700,6 +700,42 @@ td.sym.clickable:hover { color: var(--accent); }
   .board { grid-template-columns: 1fr; }
 }
 
+/* ---- Pattern-based prediction card ---- */
+.predict-card {
+  margin: 16px 0 4px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fafafa;
+}
+.predict-card.dir-up { border-left-color: #16a34a; background: #f0fdf4; }
+.predict-card.dir-down { border-left-color: #dc2626; background: #fef2f2; }
+.predict-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.predict-title { font-size: 13px; font-weight: 700; color: var(--fg); }
+.predict-badge {
+  padding: 3px 10px; border-radius: 5px; font-size: 12px; font-weight: 700;
+  background: #e5e7eb; color: #374151;
+}
+.predict-badge.dir-up { background: #16a34a; color: white; }
+.predict-badge.dir-down { background: #dc2626; color: white; }
+.predict-prob { margin-top: 8px; font-size: 14px; }
+.predict-prob b { font-size: 18px; }
+.predict-conf { color: var(--muted); font-size: 12px; }
+.predict-pattern { margin-top: 8px; font-size: 13px; }
+.predict-signals {
+  list-style: none; margin: 10px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.predict-signals li {
+  display: grid; grid-template-columns: 64px 64px 1fr; align-items: center;
+  gap: 8px; font-size: 12px;
+}
+.predict-signals .sig-name { font-weight: 700; letter-spacing: 1px; }
+.predict-signals .sig-prob { font-weight: 600; }
+.predict-signals .sig-detail { color: var(--muted); }
+.predict-note { margin-top: 10px; font-size: 11px; color: var(--muted); font-style: italic; }
+
 .empty {
   padding: 40px;
   text-align: center;
