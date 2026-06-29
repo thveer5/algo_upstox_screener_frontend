@@ -46,6 +46,7 @@ export default function MoversTable({
           <th className="num">Volume</th>
           <th>Day Range</th>
           <th>Market Cap</th>
+          <th className="num" title="Backtested next-day accuracy of the pattern method on this stock">Hit&nbsp;%</th>
           <th className="actions-th">Trade</th>
         </tr>
       </thead>
@@ -128,6 +129,15 @@ export default function MoversTable({
                     </span>
                   )
                 })()}
+              </td>
+              <td className="num">
+                {r.hit_rate == null
+                  ? <span className="dim">—</span>
+                  : (() => {
+                      const p = Math.round(r.hit_rate * 100)
+                      const cls = p >= 55 ? 'pos' : p < 45 ? 'neg' : ''
+                      return <span className={cls} title={`Backtest: ${p}% over ${r.hit_calls} past calls`}>{p}%</span>
+                    })()}
               </td>
               <td className="actions" onClick={(e) => e.stopPropagation()}>
                 {(() => {

@@ -7,6 +7,7 @@ const NAV = [
   { to: '/wishlist', label: 'Wishlist', icon: '⭐' },
   { to: '/buy-info', label: 'Buy Info', icon: '🧾' },
   { to: '/board', label: 'Stock Board', icon: '🗂️' },
+  { to: '/notepad', label: 'Notepad', icon: '📝' },
   { to: '/holdings', label: 'Holdings', icon: '💼' },
   { to: '/positions', label: 'Positions', icon: '📊' },
   { to: '/gtt', label: 'GTT Orders', icon: '🎯' },

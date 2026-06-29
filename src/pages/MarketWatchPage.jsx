@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   bootstrapTvSession,
   fetchIndices,
@@ -32,6 +32,42 @@ export default function MarketWatchPage() {
   const [search, setSearch] = useState('')
   const [searchRows, setSearchRows] = useState(null) // null = not searching
   const [searchLoading, setSearchLoading] = useState(false)
+
+  // ----- Filters (panel) -----
+  const [showFilters, setShowFilters] = useState(false)
+  const filterRef = useRef(null)
+  const [caps, setCaps] = useState([])        // selected market-cap tiers (backend)
+  const [streak, setStreak] = useState('any') // D-streak filter (client-side)
+
+  // Change% range filter (applied to the screener query). Raw inputs are
+  // debounced into the applied values that `load` actually uses.
+  const [changeMinInput, setChangeMinInput] = useState('')
+  const [changeMaxInput, setChangeMaxInput] = useState('')
+  const [changeMin, setChangeMin] = useState('')
+  const [changeMax, setChangeMax] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setChangeMin(changeMinInput.trim())
+      setChangeMax(changeMaxInput.trim())
+    }, 400)
+    return () => clearTimeout(t)
+  }, [changeMinInput, changeMaxInput])
+
+  // Close the filter panel on outside click.
+  useEffect(() => {
+    const onDoc = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilters(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  const capsKey = caps.join(',')
+  const toggleCap = (t) => setCaps((prev) => (prev.includes(t) ? prev.filter((c) => c !== t) : [...prev, t]))
+  const activeFilterCount =
+    (caps.length ? 1 : 0) + (changeMin || changeMax ? 1 : 0) + (streak !== 'any' ? 1 : 0)
+  const clearFilters = () => {
+    setCaps([]); setStreak('any')
+    setChangeMinInput(''); setChangeMaxInput('')
+  }
 
   const query = search.trim()
   const isSearching = query.length >= 2
@@ -118,20 +154,31 @@ export default function MarketWatchPage() {
   const displayRows = useMemo(() => {
     // When searching, show full-universe results from the backend; otherwise the
     // current movers list.
-    const base = isSearching ? (searchRows || []) : rows
+    let base = isSearching ? (searchRows || []) : rows
+    // Streak filter is client-side (streaks aren't a screener field).
+    if (streak !== 'any') {
+      base = base.filter((r) => {
+        const s = Math.max(r.rally_streak || 0, r.fall_streak || 0)
+        if (streak === 'd1') return s === 1
+        if (streak === 'd2') return s >= 2
+        if (streak === 'd3') return s >= 3
+        if (streak === 'd5') return s >= 5
+        return true
+      })
+    }
     if (!ttvSortDir) return base
     return [...base].sort((a, b) => {
       const va = a.ttv ?? 0
       const vb = b.ttv ?? 0
       return ttvSortDir === 'asc' ? va - vb : vb - va
     })
-  }, [rows, searchRows, isSearching, ttvSortDir])
+  }, [rows, searchRows, isSearching, ttvSortDir, streak])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchMovers({ kind: tab, pageSize: 50, index })
+      const data = await fetchMovers({ kind: tab, pageSize: 50, index, changeMin, changeMax, caps })
       setRows(data.instruments || [])
       setMeta({ updatedAt: data.updatedAt, total: data.metadata?.page?.totalRecords })
     } catch (e) {
@@ -140,7 +187,7 @@ export default function MarketWatchPage() {
     } finally {
       setLoading(false)
     }
-  }, [tab, index])
+  }, [tab, index, changeMin, changeMax, capsKey])
 
   const onRefreshTv = async () => {
     setRefreshing(true)
@@ -224,6 +271,60 @@ export default function MarketWatchPage() {
           <select value={index} onChange={e => setIndex(e.target.value)}>
             {indices.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
+
+          <div className="filter-wrap" ref={filterRef}>
+            <button
+              className={`btn-sm filter-btn ${activeFilterCount ? 'has-active' : ''}`}
+              onClick={() => setShowFilters(s => !s)}
+              title="Filters"
+            >
+              ⚲ Filters{activeFilterCount > 0 && <span className="filter-count">{activeFilterCount}</span>}
+            </button>
+            {showFilters && (
+              <div className="filter-panel">
+                <div className="filter-section">
+                  <div className="filter-title">Market Cap</div>
+                  {[
+                    { id: 'large', label: 'Large Cap' },
+                    { id: 'mid', label: 'Mid Cap' },
+                    { id: 'small', label: 'Small Cap' },
+                    { id: 'micro', label: 'Micro Cap' },
+                  ].map(c => (
+                    <label key={c.id} className="filter-check">
+                      <input type="checkbox" checked={caps.includes(c.id)} onChange={() => toggleCap(c.id)} />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+
+                <div className="filter-section">
+                  <div className="filter-title">Change %</div>
+                  <div className="filter-range">
+                    <input type="number" step="0.1" placeholder="min" value={changeMinInput} onChange={e => setChangeMinInput(e.target.value)} />
+                    <span>–</span>
+                    <input type="number" step="0.1" placeholder="max" value={changeMaxInput} onChange={e => setChangeMaxInput(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="filter-section">
+                  <div className="filter-title">Streak (consecutive days)</div>
+                  <select value={streak} onChange={e => setStreak(e.target.value)}>
+                    <option value="any">Any</option>
+                    <option value="d1">D1 only (first day)</option>
+                    <option value="d2">D2 or more</option>
+                    <option value="d3">D3 or more</option>
+                    <option value="d5">D5 or more</option>
+                  </select>
+                </div>
+
+                <div className="filter-actions">
+                  <button className="btn-sm" onClick={clearFilters} disabled={!activeFilterCount}>Clear all</button>
+                  <button className="btn-primary" onClick={() => setShowFilters(false)}>Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="refresh" onClick={load} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>

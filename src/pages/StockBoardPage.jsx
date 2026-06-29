@@ -65,6 +65,7 @@ export default function StockBoardPage() {
   const [error, setError] = useState(null)
   const [dragId, setDragId] = useState(null)
   const [overCol, setOverCol] = useState(null)
+  const [overCardId, setOverCardId] = useState(null)
   // Local note edits keyed by card id (so typing is smooth, save on blur).
   const [noteDraft, setNoteDraft] = useState({})
 
@@ -83,6 +84,8 @@ export default function StockBoardPage() {
   const byCol = useMemo(() => {
     const g = { plan: [], buy: [], sell: [] }
     for (const c of cards) (g[c.status] || g.plan).push(c)
+    // Order each column top->bottom by position.
+    for (const k of Object.keys(g)) g[k].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     return g
   }, [cards])
 
@@ -100,17 +103,39 @@ export default function StockBoardPage() {
     } catch (e) { setError(`Add failed: ${e.message}`) }
   }
 
+  const applyMove = async (id, status, position) => {
+    // Optimistic update, then persist.
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status, position } : c)))
+    try { await updateCard(id, { status, position }) }
+    catch (e) { setError(`Move failed: ${e.message}`); load() }
+  }
+
+  // Drop on the column background -> move to the BOTTOM of that column.
   const onDrop = async (status) => {
     setOverCol(null)
+    setOverCardId(null)
     const id = dragId
     setDragId(null)
     if (id == null) return
-    const card = cards.find((c) => c.id === id)
-    if (!card || card.status === status) return
-    // Optimistic move.
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
-    try { await updateCard(id, { status }) }
-    catch (e) { setError(`Move failed: ${e.message}`); load() }
+    const others = byCol[status].filter((c) => c.id !== id)
+    const maxPos = others.length ? Math.max(...others.map((c) => c.position ?? 0)) : 0
+    await applyMove(id, status, maxPos + 1)
+  }
+
+  // Drop ON a card -> insert the dragged card ABOVE that card.
+  const onDropOnCard = async (target, e) => {
+    e.stopPropagation()
+    setOverCol(null)
+    setOverCardId(null)
+    const id = dragId
+    setDragId(null)
+    if (id == null || id === target.id) return
+    const list = byCol[target.status].filter((c) => c.id !== id) // exclude dragged
+    const tIdx = list.findIndex((c) => c.id === target.id)
+    const prev = list[tIdx - 1]
+    const tPos = target.position ?? 0
+    const newPos = prev ? ((prev.position ?? 0) + tPos) / 2 : tPos - 1
+    await applyMove(id, target.status, newPos)
   }
 
   const onDelete = async (card) => {
@@ -163,10 +188,19 @@ export default function StockBoardPage() {
                 {list.map((c) => (
                   <div
                     key={c.id}
-                    className={`board-card ${dragId === c.id ? 'dragging' : ''}`}
+                    className={`board-card ${dragId === c.id ? 'dragging' : ''} ${overCardId === c.id ? 'drop-above' : ''}`}
                     draggable
                     onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(c.id) }}
-                    onDragEnd={() => setDragId(null)}
+                    onDragEnd={() => { setDragId(null); setOverCardId(null) }}
+                    onDragOver={(e) => {
+                      if (dragId == null || dragId === c.id) return
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setOverCardId(c.id)
+                      setOverCol(null)
+                    }}
+                    onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverCardId(null) }}
+                    onDrop={(e) => onDropOnCard(c, e)}
                   >
                     <div className="board-card-head">
                       <span className="board-card-sym">{c.symbol}</span>

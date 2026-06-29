@@ -55,9 +55,12 @@ export async function getAuthStatus() {
   return get('/auth/status')
 }
 
-export async function fetchMovers({ kind = 'gainers', pageSize = 50, index = null } = {}) {
+export async function fetchMovers({ kind = 'gainers', pageSize = 50, index = null, changeMin = null, changeMax = null, caps = [] } = {}) {
   const params = new URLSearchParams({ kind, page_size: String(pageSize) })
   if (index && index !== 'all') params.set('index', index)
+  if (changeMin != null && changeMin !== '') params.set('change_min', String(changeMin))
+  if (changeMax != null && changeMax !== '') params.set('change_max', String(changeMax))
+  if (caps && caps.length) params.set('caps', caps.join(','))
   return get(`/api/screener/movers?${params.toString()}`)
 }
 
@@ -159,6 +162,14 @@ export async function deleteTrade(id) {
   return del(`/api/trades/${id}`)
 }
 
+export async function addTradeLot(id, lot) {
+  return post(`/api/trades/${id}/lot`, lot)
+}
+
+export async function removeTradeLot(id, index) {
+  return del(`/api/trades/${id}/lot/${index}`)
+}
+
 // ----- Stock board cards (Plan / Buy / Sell) -----
 export async function listCards() {
   return get('/api/cards')
@@ -174,4 +185,21 @@ export async function updateCard(id, body) {
 
 export async function deleteCard(id) {
   return del(`/api/cards/${id}`)
+}
+
+// ----- Notepad -----
+export async function listNotes() {
+  return get('/api/notes')
+}
+
+export async function createNote(body) {
+  return post('/api/notes', body)
+}
+
+export async function updateNote(id, body) {
+  return patch(`/api/notes/${id}`, body)
+}
+
+export async function deleteNote(id) {
+  return del(`/api/notes/${id}`)
 }

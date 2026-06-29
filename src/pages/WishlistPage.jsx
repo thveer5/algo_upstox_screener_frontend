@@ -115,8 +115,11 @@ export default function WishlistPage() {
     }
   }, [rows])
 
+  // Gainer/Loser follows the LIVE change, not the band it was added under.
+  const liveKind = (r) => ((r.change_percent ?? r.change ?? 0) >= 0 ? 'gainers' : 'losers')
+
   const visible = useMemo(
-    () => (filter === 'all' ? rows : rows.filter((r) => r.kind === filter)),
+    () => (filter === 'all' ? rows : rows.filter((r) => liveKind(r) === filter)),
     [rows, filter],
   )
 
@@ -192,6 +195,7 @@ export default function WishlistPage() {
               <th className="num">Traded Value</th>
               <th className="num">Volume</th>
               <th>Market Cap</th>
+              <th className="num" title="Backtested next-day accuracy of the pattern method on this stock">Hit&nbsp;%</th>
               <th>Added</th>
               <th className="actions-th">Action</th>
             </tr>
@@ -214,9 +218,14 @@ export default function WishlistPage() {
                     <StreakBadge rallyStreak={r.rally_streak} fallStreak={r.fall_streak} />
                   </td>
                   <td>
-                    <span className={`cap-badge ${r.kind === 'losers' ? 'cap-micro' : 'cap-large'}`}>
-                      {r.kind === 'losers' ? 'Loser' : 'Gainer'}
-                    </span>
+                    {(() => {
+                      const lk = liveKind(r)
+                      return (
+                        <span className={`cap-badge ${lk === 'losers' ? 'cap-micro' : 'cap-large'}`}>
+                          {lk === 'losers' ? 'Loser' : 'Gainer'}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="num">{fmtNumber(r.ltp)}</td>
                   <td className={`num ${colorClass}`}>{fmtNumber(r.change)}</td>
@@ -231,6 +240,15 @@ export default function WishlistPage() {
                     ) : (
                       <span className="dim">—</span>
                     )}
+                  </td>
+                  <td className="num">
+                    {r.hit_rate == null
+                      ? <span className="dim">—</span>
+                      : (() => {
+                          const p = Math.round(r.hit_rate * 100)
+                          const cls = p >= 55 ? 'pos' : p < 45 ? 'neg' : ''
+                          return <span className={cls} title={`Backtest: ${p}% over ${r.hit_calls} past calls`}>{p}%</span>
+                        })()}
                   </td>
                   <td className="dim">{fmtDate(r.added_at)}</td>
                   <td className="actions" onClick={(e) => e.stopPropagation()}>

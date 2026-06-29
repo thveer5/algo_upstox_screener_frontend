@@ -31,10 +31,10 @@ export default function StockDetailModal({ item, onClose }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Show ~90 trading days of history; widen further only if the current streak
+  // Show ~120 trading days of history; widen further only if the current streak
   // runs longer than that.
   const streak = (item?.kind === 'losers' ? item?.fall_streak : item?.rally_streak) || 0
-  const windowDays = Math.max(streak, 90)
+  const windowDays = Math.max(streak, 120)
 
   useEffect(() => {
     if (!item) return
@@ -43,7 +43,7 @@ export default function StockDetailModal({ item, onClose }) {
     setError(null)
     setCandles(null)
     setPrediction(null)
-    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 120), ltp: item.ltp })
+    fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 150), ltp: item.ltp })
       .then((d) => { if (!cancelled) { setCandles(d.candles || []); setPrediction(d.prediction || null) } })
       .catch((e) => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -63,10 +63,16 @@ export default function StockDetailModal({ item, onClose }) {
   // day-over-day change % from prior closes.
   const merged = useMemo(() => {
     const hist = candles || []
+    const istNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+    const isWeekday = istNow.getDay() >= 1 && istNow.getDay() <= 5
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
     const list = [...hist]
-    const hasToday = list.length && list[list.length - 1].date === todayStr
-    if (!hasToday && item) {
+    const last = list[list.length - 1]
+    const hasToday = last && last.date === todayStr
+    // Only add today as a new bar on a trading weekday with a genuinely new price.
+    // On weekends/holidays the LTP equals the last close — adding it would create
+    // a fake flat day (e.g. a "21 Jun" Sunday row).
+    if (!hasToday && isWeekday && item && last && item.ltp != null && item.ltp !== last.close) {
       list.push({
         date: todayStr,
         open: item.open,
@@ -147,12 +153,14 @@ export default function StockDetailModal({ item, onClose }) {
               </div>
               <div className="predict-prob">
                 <b>{pct}%</b> chance up
-                <span className="predict-conf"> · {p.confidence} confidence · {p.sample_days}d sample</span>
+                <span className="predict-conf">
+                  {' '}(95% CI {Math.round(p.ci_low * 100)}–{Math.round(p.ci_high * 100)}%) · {p.confidence} confidence · {p.sample_days}d sample
+                </span>
               </div>
               <div className="predict-pattern">
-                After <b>{p.pattern}</b> ({p.pattern_len}-day pattern), the next day was{' '}
-                <span className="pos">↑ {p.ups}</span> / <span className="neg">↓ {p.downs}</span>{' '}
-                ({p.matches} times in history)
+                Last {p.pattern_len} days: <b>{p.pattern}</b>. The {p.matches} earlier times this
+                happened, the <i>next</i> day rose <span className="pos">{p.ups}×</span> and fell{' '}
+                <span className="neg">{p.downs}×</span>.
               </div>
               <ul className="predict-signals">
                 {p.by_length.map((b) => (
@@ -163,8 +171,19 @@ export default function StockDetailModal({ item, onClose }) {
                   </li>
                 ))}
               </ul>
+              {p.backtest && p.backtest.accuracy != null ? (
+                <div className="predict-backtest">
+                  <div>Real hit-rate (settled history): <b>{Math.round(p.backtest.accuracy * 100)}%</b> ({p.backtest.correct}/{p.backtest.calls} past calls)</div>
+                  {p.backtest_live && p.backtest_live.accuracy != null && (
+                    <div>With today's live candle: <b>{Math.round(p.backtest_live.accuracy * 100)}%</b> ({p.backtest_live.correct}/{p.backtest_live.calls} calls)</div>
+                  )}
+                </div>
+              ) : (
+                <div className="predict-backtest">Not enough past calls to backtest this stock.</div>
+              )}
               <div className="predict-note">
-                Empirical: how this stock behaved after the same up/down sequence over {p.sample_days} days — not financial advice.
+                Empirical pattern frequency over {p.sample_days} days. Daily direction is near
+                a coin flip — treat low-confidence calls as noise. Not financial advice.
               </div>
             </div>
           )

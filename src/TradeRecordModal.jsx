@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import StockSearchInput from './StockSearchInput'
 
+export const PLATFORMS = ['Zerodha', 'Upstox', 'Dhan']
+
 // Add/Edit modal for a Buy or Sell trade record. Persistence is handled by the
 // parent via onSubmit(data, id) so the page can hit the API and reload.
 export default function TradeRecordModal({ open, initial, defaultType, onClose, onSubmit }) {
@@ -13,6 +15,7 @@ export default function TradeRecordModal({ open, initial, defaultType, onClose, 
   const [sellPrice, setSellPrice] = useState('')
   const [pct, setPct] = useState('')
   const [afterTaxPl, setAfterTaxPl] = useState('')
+  const [platform, setPlatform] = useState('')
   const [comments, setComments] = useState('')
   const [err, setErr] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -30,6 +33,7 @@ export default function TradeRecordModal({ open, initial, defaultType, onClose, 
     setSellPrice(initial?.sell_price ?? '')
     setPct(initial?.pct ?? '')
     setAfterTaxPl(initial?.after_tax_pl ?? '')
+    setPlatform(initial?.platform || '')
     setComments(initial?.comments || '')
     setErr(null)
     setSaving(false)
@@ -48,6 +52,13 @@ export default function TradeRecordModal({ open, initial, defaultType, onClose, 
     const b = Number(buyPrice), s = Number(sellPrice), q = Number(qty)
     if (buyPrice === '' || sellPrice === '' || qty === '' || isNaN(b) || isNaN(s) || isNaN(q)) return null
     return (s - b) * q
+  })()
+
+  // Total invested = qty * buy price.
+  const total = (() => {
+    const b = Number(buyPrice), q = Number(qty)
+    if (buyPrice === '' || qty === '' || isNaN(b) || isNaN(q)) return null
+    return b * q
   })()
 
   useEffect(() => {
@@ -75,6 +86,7 @@ export default function TradeRecordModal({ open, initial, defaultType, onClose, 
       sell_price: sellPrice === '' ? null : Number(sellPrice),
       pct: pct === '' ? null : Number(pct),
       after_tax_pl: afterTaxPl === '' ? null : Number(afterTaxPl),
+      platform: platform || null,
       comments: comments.trim() || null,
     }
     setSaving(true)
@@ -111,6 +123,14 @@ export default function TradeRecordModal({ open, initial, defaultType, onClose, 
           </div>
 
           <div className="form-field">
+            <span>Platform</span>
+            <select value={platform} onChange={(e) => setPlatform(e.target.value)}>
+              <option value="">— Select broker —</option>
+              {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div className="form-field">
             <span>No. of stocks</span>
             <input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="e.g. 10" />
           </div>
@@ -134,6 +154,16 @@ export default function TradeRecordModal({ open, initial, defaultType, onClose, 
               <span>Sell price (₹)</span>
               <input type="number" step="0.01" min="0" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} placeholder="e.g. 3700" />
             </div>
+          </div>
+
+          <div className="form-field">
+            <span>Total <em className="hint">(Qty × Buy price)</em></span>
+            <input
+              type="text"
+              readOnly
+              className="readonly-field"
+              value={total != null ? `₹${total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+            />
           </div>
 
           <div className="form-field">
