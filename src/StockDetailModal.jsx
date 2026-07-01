@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { fetchCandles } from './api'
 
 function fmt(n, decimals = 2) {
@@ -22,12 +22,57 @@ function fmtDay(iso) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
 }
 
+// Inline "what did the model say before this day?" card, shown when a history
+// row is expanded. `fc` comes from the backend per-date forecast series.
+function HistForecast({ fc, date }) {
+  const pct = Math.round(fc.prob_up * 100)
+  const arrow = fc.direction === 'up' ? '▲' : fc.direction === 'down' ? '▼' : '◌'
+  const label = fc.direction === 'up' ? 'Lean Up' : fc.direction === 'down' ? 'Lean Down' : 'Neutral'
+  const outcome = fc.hit == null
+    ? <span className="muted">no call (neutral)</span>
+    : fc.hit
+      ? <span className="pos">✓ hit — actually went {fc.actual}</span>
+      : <span className="neg">✗ miss — actually went {fc.actual}</span>
+  return (
+    <div className={`predict-card compact dir-${fc.direction}`}>
+      <div className="predict-head">
+        <span className="predict-title">
+          Forecast for {fmtDay(date)} <em className="hint">(as of {fmtDay(fc.as_of_date)}, {fc.sample_days}d data)</em>
+        </span>
+        <span className={`predict-badge dir-${fc.direction}`}>{arrow} {label}</span>
+      </div>
+      <div className="predict-prob">
+        <b>{pct}%</b> chance up
+        <span className="predict-conf">
+          {' '}(95% CI {Math.round(fc.ci_low * 100)}–{Math.round(fc.ci_high * 100)}%) · {fc.confidence} confidence
+        </span>
+      </div>
+      <div className="predict-pattern">
+        Prior {fc.pattern_len} days: <b>{fc.pattern}</b>. The {fc.matches} earlier times this happened,
+        the next day rose <span className="pos">{fc.ups}×</span> and fell <span className="neg">{fc.downs}×</span>.
+      </div>
+      <ul className="predict-signals">
+        {fc.by_length.map((b) => (
+          <li key={b.length}>
+            <span className="sig-name">{b.pattern}</span>
+            <span className={`sig-prob ${b.prob_up >= 0.5 ? 'pos' : 'neg'}`}>{Math.round(b.prob_up * 100)}% up</span>
+            <span className="sig-detail">{b.ups}↑ / {b.downs}↓ · {b.matches} matches</span>
+          </li>
+        ))}
+      </ul>
+      <div className="predict-backtest">Outcome: {outcome}</div>
+    </div>
+  )
+}
+
 // Day-by-day price / change breakdown for one scrip. Shared by Market Watch
 // and the Wishlist. `item` is a screener row (needs instrument_key, symbol,
 // ltp, open/high/low, change_percent) plus `kind` ('gainers' | 'losers').
 export default function StockDetailModal({ item, onClose }) {
   const [candles, setCandles] = useState(null)
   const [prediction, setPrediction] = useState(null)
+  const [series, setSeries] = useState({})
+  const [openDate, setOpenDate] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -43,8 +88,10 @@ export default function StockDetailModal({ item, onClose }) {
     setError(null)
     setCandles(null)
     setPrediction(null)
+    setSeries({})
+    setOpenDate(null)
     fetchCandles({ instrumentKey: item.instrument_key, days: Math.min(windowDays, 150), ltp: item.ltp })
-      .then((d) => { if (!cancelled) { setCandles(d.candles || []); setPrediction(d.prediction || null) } })
+      .then((d) => { if (!cancelled) { setCandles(d.candles || []); setPrediction(d.prediction || null); setSeries(d.series || {}) } })
       .catch((e) => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -93,6 +140,33 @@ export default function StockDetailModal({ item, onClose }) {
 
   // Window (last N days incl. today), newest first.
   const dayRows = useMemo(() => merged.slice(-windowDays).reverse(), [merged, windowDays])
+
+  // Month-by-month return within the window. Each month's return is measured
+  // from the previous month's last close (so the months chain to the total
+  // cumulative); the first month falls back to its own first close.
+  const monthlyRows = useMemo(() => {
+    const win = merged.slice(-windowDays).filter((c) => c.close != null)
+    if (!win.length) return []
+    const groups = []
+    const byKey = {}
+    for (const c of win) {
+      const key = (c.date || '').slice(0, 7) // YYYY-MM
+      if (!key) continue
+      if (!byKey[key]) { byKey[key] = { key, rows: [] }; groups.push(byKey[key]) }
+      byKey[key].rows.push(c)
+    }
+    let prevClose = null
+    return groups.map((g) => {
+      const firstC = g.rows[0]
+      const lastC = g.rows[g.rows.length - 1]
+      const base = prevClose != null ? prevClose : firstC.close
+      const pct = base ? ((lastC.close - base) / base) * 100 : null
+      prevClose = lastC.close
+      const d = new Date(g.key + '-01T00:00:00')
+      const label = isNaN(d) ? g.key : d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+      return { key: g.key, label, pct, days: g.rows.length, close: lastC.close }
+    })
+  }, [merged, windowDays])
 
   if (!item) return null
 
@@ -189,6 +263,21 @@ export default function StockDetailModal({ item, onClose }) {
           )
         })()}
 
+        {monthlyRows.length > 1 && (
+          <>
+            <div className="modal-section-title">Monthly cumulative</div>
+            <div className="month-chips">
+              {[...monthlyRows].reverse().map((m) => (
+                <div key={m.key} className={`month-chip ${m.pct == null ? '' : m.pct >= 0 ? 'pos' : 'neg'}`}>
+                  <span className="month-chip-label">{m.label}</span>
+                  <b>{fmtPct(m.pct)}</b>
+                  <span className="month-chip-days">{m.days} trading days</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         <div className="modal-section-title">
           Last {dayRows.length || windowDays} days
           {cumPct != null && (
@@ -203,31 +292,62 @@ export default function StockDetailModal({ item, onClose }) {
         )}
 
         {dayRows.length > 0 && (
-          <table className="movers compact">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th className="num">Close</th>
-                <th className="num">Change %</th>
-                <th className="num">High</th>
-                <th className="num">Low</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dayRows.map((d) => {
-                const cls = d.changePct == null ? '' : d.changePct >= 0 ? 'pos' : 'neg'
-                return (
-                  <tr key={d.date}>
-                    <td>{fmtDay(d.date)}</td>
-                    <td className="num">₹{fmt(d.close)}</td>
-                    <td className={`num ${cls}`}>{fmtPct(d.changePct)}</td>
-                    <td className="num">{fmt(d.high)}</td>
-                    <td className="num">{fmt(d.low)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <>
+            <div className="hist-hint">Tip: click any day to see the pattern forecast that was actionable <i>before</i> that day — and whether it hit.</div>
+            <table className="movers compact hist-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th className="num">Close</th>
+                  <th className="num">Change %</th>
+                  <th className="num">High</th>
+                  <th className="num">Low</th>
+                  <th className="num">Forecast</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dayRows.map((d) => {
+                  const cls = d.changePct == null ? '' : d.changePct >= 0 ? 'pos' : 'neg'
+                  const fc = series[d.date]
+                  const isOpen = openDate === d.date
+                  const badge = fc
+                    ? (fc.direction === 'up' ? '▲' : fc.direction === 'down' ? '▼' : '◌')
+                    : '·'
+                  const hitMark = fc && fc.hit != null ? (fc.hit ? '✓' : '✗') : ''
+                  return (
+                    <Fragment key={d.date}>
+                      <tr
+                        className={`hist-row${fc ? ' clickable' : ''}${isOpen ? ' open' : ''}`}
+                        onClick={() => fc && setOpenDate(isOpen ? null : d.date)}
+                        title={fc ? 'Show the forecast made before this day' : 'No forecast (too little prior history)'}
+                      >
+                        <td>{fmtDay(d.date)}</td>
+                        <td className="num">₹{fmt(d.close)}</td>
+                        <td className={`num ${cls}`}>{fmtPct(d.changePct)}</td>
+                        <td className="num">{fmt(d.high)}</td>
+                        <td className="num">{fmt(d.low)}</td>
+                        <td className="num">
+                          {fc ? (
+                            <span className={`fc-tag dir-${fc.direction}`}>
+                              {badge} {Math.round(fc.prob_up * 100)}%
+                              {hitMark && <b className={fc.hit ? 'pos' : 'neg'}> {hitMark}</b>}
+                            </span>
+                          ) : <span className="muted">—</span>}
+                        </td>
+                      </tr>
+                      {isOpen && fc && (
+                        <tr className="hist-detail-row">
+                          <td colSpan={6}>
+                            <HistForecast fc={fc} date={d.date} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </div>

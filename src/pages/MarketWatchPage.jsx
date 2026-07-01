@@ -335,6 +335,18 @@ export default function MarketWatchPage() {
 
       {isSearching && searchLoading && displayRows.length === 0 ? (
         <div className="empty">Searching “{query}”…</div>
+      ) : !isSearching && !loading && displayRows.length === 0 && (activeFilterCount > 0 || index !== 'all') ? (
+        <div className="empty">
+          No stocks match {index !== 'all' ? 'this index' : ''}{index !== 'all' && activeFilterCount ? ' + ' : ''}{activeFilterCount ? 'the active filters' : ''}.
+          <div className="empty-hint">
+            {index !== 'all' && caps.length ? (
+              <>Tip: the market-cap band is an <b>absolute ₹ range</b>, which usually won't overlap a size index like <b>{indices.find(o => o.id === index)?.label || index}</b>.
+              Set the index to <b>All NSE</b>, or uncheck Market Cap.</>
+            ) : (
+              <>Try a wider Change % range, a different Market Cap band, or clear the filters / set the index to <b>All NSE</b>.</>
+            )}
+          </div>
+        </div>
       ) : (
         <MoversTable
           rows={displayRows}

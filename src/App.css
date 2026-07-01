@@ -539,6 +539,61 @@ table.movers tr.clickable { cursor: pointer; }
   font-weight: 600;
 }
 
+.month-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.month-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 84px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  border-radius: 8px;
+  background: #fafafa;
+}
+.month-chip.pos { border-left-color: #16a34a; background: #f0fdf4; }
+.month-chip.neg { border-left-color: #dc2626; background: #fef2f2; }
+.month-chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.month-chip b {
+  font-size: 15px;
+  font-weight: 700;
+}
+.month-chip.pos b { color: #16a34a; }
+.month-chip.neg b { color: #dc2626; }
+.month-chip-days {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.hist-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.hist-row.clickable { cursor: pointer; }
+.hist-row.clickable:hover { background: #f5f7fa; }
+.hist-row.open { background: #eef2ff; }
+.fc-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.fc-tag.dir-up { color: #16a34a; }
+.fc-tag.dir-down { color: #dc2626; }
+.hist-detail-row > td { padding: 0 !important; background: #fafafa; }
+.predict-card.compact { margin: 6px 8px 10px; }
+
 table.movers.compact th,
 table.movers.compact td { padding: 6px 10px; font-size: 13px; }
 
@@ -979,6 +1034,13 @@ table.lots-table tfoot td {
 .empty {
   padding: 40px;
   text-align: center;
+  color: var(--muted);
+}
+.empty-hint {
+  max-width: 520px;
+  margin: 10px auto 0;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--muted);
 }
 
