@@ -369,6 +369,11 @@ table.movers th {
 table.movers td.num, table.movers th.num { text-align: right; font-variant-numeric: tabular-nums; }
 table.movers td.dim { color: var(--muted); width: 36px; }
 table.movers td.sym { font-weight: 500; }
+
+table.movers th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+table.movers th.sortable:hover { color: var(--fg); background: #f0f2f5; }
+table.movers th.sorted { color: var(--fg); }
+.sort-ind { font-size: 10px; }
 table.movers .seg { color: var(--muted); font-size: 11px; font-weight: 400; margin-left: 4px; }
 table.movers td.pos { color: var(--pos); }
 table.movers td.neg { color: var(--neg); }
@@ -421,6 +426,51 @@ table.movers td.neg { color: var(--neg); }
 .cap-badge.cap-mid   { background: #dcfce7; color: #166534; }
 .cap-badge.cap-small { background: #fef3c7; color: #92400e; }
 .cap-badge.cap-micro { background: #fee2e2; color: #991b1b; }
+
+/* Wishlist search + market-cap filter */
+.wl-search { position: relative; display: inline-flex; align-items: center; }
+.wl-search input {
+  padding: 6px 26px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 180px;
+}
+.wl-search input:focus { outline: none; border-color: var(--accent); }
+.wl-search-clear {
+  position: absolute;
+  right: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+.wl-cap-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.wl-cap-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.cap-chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cap-chip:hover { border-color: var(--accent); }
+.cap-chip.active.cap-large { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.cap-chip.active.cap-mid   { background: #dcfce7; color: #166534; border-color: #86efac; }
+.cap-chip.active.cap-small { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.cap-chip.active.cap-micro { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.cap-chip.cap-clear { color: var(--muted); }
 
 table.movers th.sortable {
   cursor: pointer;

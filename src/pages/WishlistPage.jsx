@@ -60,6 +60,10 @@ export default function WishlistPage() {
   const [order, setOrder] = useState(null)
   const [detail, setDetail] = useState(null)
   const [filter, setFilter] = useState('all') // all | gainers | losers
+  const [query, setQuery] = useState('')
+  const [caps, setCaps] = useState([]) // subset of large/mid/small/micro
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('desc')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
   const [refreshing, setRefreshing] = useState(false)
@@ -118,20 +122,76 @@ export default function WishlistPage() {
   // Gainer/Loser follows the LIVE change, not the band it was added under.
   const liveKind = (r) => ((r.change_percent ?? r.change ?? 0) >= 0 ? 'gainers' : 'losers')
 
-  const visible = useMemo(
-    () => (filter === 'all' ? rows : rows.filter((r) => liveKind(r) === filter)),
-    [rows, filter],
-  )
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return rows.filter((r) => {
+      if (filter !== 'all' && liveKind(r) !== filter) return false
+      if (q && !(r.symbol || '').toLowerCase().includes(q)) return false
+      if (caps.length) {
+        const c = classifyMarketCap(r.market_cap)
+        if (!c || !caps.includes(c.cls)) return false
+      }
+      return true
+    })
+  }, [rows, filter, query, caps])
 
-  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  const toggleCap = (cls) => {
+    setCaps((prev) => (prev.includes(cls) ? prev.filter((c) => c !== cls) : [...prev, cls]))
+    setPage(1)
+  }
+
+  // Click a header to sort by that column: 1st click desc, 2nd asc, 3rd clears
+  // (back to the order items were wishlisted in).
+  const toggleSort = (key) => {
+    if (sortKey !== key) { setSortKey(key); setSortDir('desc') }
+    else if (sortDir === 'desc') setSortDir('asc')
+    else { setSortKey(null); setSortDir('desc') }
+    setPage(1)
+  }
+
+  const sortVal = (r, key) => {
+    switch (key) {
+      case 'symbol': return (r.symbol || '').toLowerCase()
+      case 'added_at': return r.added_at ? new Date(r.added_at).getTime() : null
+      case 'change_percent': return r.change_percent ?? r.change ?? null
+      default: return r[key] ?? null
+    }
+  }
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return visible
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...visible].sort((a, b) => {
+      const va = sortVal(a, sortKey), vb = sortVal(b, sortKey)
+      const na = va == null || va === '', nb = vb == null || vb === ''
+      if (na && nb) return 0
+      if (na) return 1   // missing values always sink to the bottom
+      if (nb) return -1
+      if (typeof va === 'string') return va.localeCompare(vb) * dir
+      return (va - vb) * dir
+    })
+  }, [visible, sortKey, sortDir])
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   // Keep the current page in range as the list/filter/page-size change.
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
 
   const paged = useMemo(
-    () => visible.slice((page - 1) * pageSize, page * pageSize),
-    [visible, page, pageSize],
+    () => sorted.slice((page - 1) * pageSize, page * pageSize),
+    [sorted, page, pageSize],
+  )
+
+  // Sortable column header — shows the active ▲/▼ indicator.
+  const Th = ({ col, label, num }) => (
+    <th
+      className={`sortable${num ? ' num' : ''}${sortKey === col ? ' sorted' : ''}`}
+      onClick={() => toggleSort(col)}
+      title="Click to sort"
+    >
+      {label}<span className="sort-ind">{sortKey === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
+    </th>
   )
 
   return (
@@ -165,6 +225,17 @@ export default function WishlistPage() {
           ))}
         </div>
         <div className="filters">
+          <div className="wl-search">
+            <input
+              type="text"
+              placeholder="Search scrip…"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+            />
+            {query && (
+              <button className="wl-search-clear" onClick={() => { setQuery(''); setPage(1) }} title="Clear">×</button>
+            )}
+          </div>
           <label className="page-size">
             Rows
             <select
@@ -177,26 +248,51 @@ export default function WishlistPage() {
         </div>
       </div>
 
+      <div className="wl-cap-filter">
+        <span className="wl-cap-label">Market Cap:</span>
+        {[
+          { cls: 'large', label: 'Large' },
+          { cls: 'mid', label: 'Mid' },
+          { cls: 'small', label: 'Small' },
+          { cls: 'micro', label: 'Micro' },
+        ].map((c) => (
+          <button
+            key={c.cls}
+            className={`cap-chip cap-${c.cls} ${caps.includes(c.cls) ? 'active' : ''}`}
+            onClick={() => toggleCap(c.cls)}
+          >{c.label}</button>
+        ))}
+        {caps.length > 0 && (
+          <button className="cap-chip cap-clear" onClick={() => { setCaps([]); setPage(1) }}>Clear</button>
+        )}
+      </div>
+
       {visible.length === 0 ? (
-        <div className="empty">
-          No wishlisted scrips{filter !== 'all' ? ` in ${filter}` : ''}. Add some from
-          Market Watch using the ☆ button.
-        </div>
+        rows.length === 0 ? (
+          <div className="empty">
+            No wishlisted scrips yet. Add some from Market Watch using the ☆ button.
+          </div>
+        ) : (
+          <div className="empty">
+            No scrips match your search / filters.
+            <div className="empty-hint">Try clearing the search, market-cap chips, or the {filter !== 'all' ? filter : ''} tab.</div>
+          </div>
+        )
       ) : (
         <table className="movers">
           <thead>
             <tr>
               <th>#</th>
-              <th>Scrip</th>
+              <Th col="symbol" label="Scrip" />
               <th>From</th>
-              <th className="num">LTP</th>
-              <th className="num">Change</th>
-              <th className="num">Change %</th>
-              <th className="num">Traded Value</th>
-              <th className="num">Volume</th>
-              <th>Market Cap</th>
-              <th className="num" title="Backtested next-day accuracy of the pattern method on this stock">Hit&nbsp;%</th>
-              <th>Added</th>
+              <Th col="ltp" label="LTP" num />
+              <Th col="change" label="Change" num />
+              <Th col="change_percent" label="Change %" num />
+              <Th col="ttv" label="Traded Value" num />
+              <Th col="vtt" label="Volume" num />
+              <Th col="market_cap" label="Market Cap" />
+              <Th col="hit_rate" label={<>Hit&nbsp;%</>} num />
+              <Th col="added_at" label="Added" />
               <th className="actions-th">Action</th>
             </tr>
           </thead>
